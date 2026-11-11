@@ -473,4 +473,26 @@
     <string name="tut_update_title">Aggiornamenti</string>
     <string name="tut_update_body">Ogni 12 ore la tastiera cerca una nuova versione nel suo repository su GitHub, e solo lì. Quando c\'è, in cima a Inizio compare un riquadro blu; Impostazioni → Aggiornamenti mostra le novità e la scarica e installa. Android la installa solo se è firmata con la stessa chiave di quella che hai. Puoi disattivare il controllo, o toccare Controlla ora.</string>
     <string name="update_missing">Il file di questa versione non è ancora pubblicato.</string>
+    <string name="st_emoji">Emoji</string>
+    <string name="st_gif">GIF</string>
+    <string name="st_translate">Traduci</string>
+    <string name="st_clipboard">Appunti</string>
+    <string name="st_voice">Voce</string>
+    <string name="st_language">Lingua</string>
+    <string name="st_help">Aiuto</string>
+    <string name="st_settings">Impostazioni</string>
+    <string name="pref_emoji_key_title">Tasto emoji</string>
+    <string name="pref_emoji_key_summary">Mostra il tasto emoji accanto al tasto dei simboli. Senza, la barra spaziatrice è più lunga; le emoji restano a una pressione lunga del tasto dei simboli.</string>
+    <string name="pref_symbols_emoji_title">Tieni premuto il tasto dei simboli per le emoji</string>
+    <string name="pref_symbols_emoji_summary">Tenendo premuto ?123 si aprono le emoji, così si può togliere il tasto emoji.</string>
+    <string name="pref_space_task_title">SpaceTask</string>
+    <string name="pref_space_task_summary">Tieni premuta la barra spaziatrice e scorri su emoji, GIF, traduzione, appunti, voce o impostazioni, senza staccare il dito. Sostituisce i tre puntini.</string>
+    <string name="pref_multi_title">Tutte le lingue attive insieme</string>
+    <string name="pref_multi_summary">Corregge e prevede in tutte le lingue attivate insieme, in base alle parole che stai scrivendo, senza doverle cambiare. Fino a quattro lingue.</string>
+    <string name="tut_spacetask_title">SpaceTask</string>
+    <string name="tut_spacetask_body">Tieni premuta la barra spaziatrice e ne esce una fila di luoghi: emoji, GIF, traduzione, appunti, digitazione vocale, lingua, aiuto e impostazioni. Senza staccare il dito, scorri su quello che vuoi e rilascia. Sostituisce i tre puntini della barra; si disattiva in Impostazioni → Scrittura.</string>
+    <string name="tut_multi_title">Due lingue insieme</string>
+    <string name="tut_multi_body">Attiva due o tre lingue in Impostazioni → Lingue e la tastiera corregge e prevede in tutte insieme, senza doverle cambiare. Legge le parole che hai appena scritto per capire in che lingua sei, ricorda la parola prima e, se scrivi in mezzo a un testo, quella dopo. Una parola che una delle tue lingue conosce non viene mai corretta. Si disattiva in Impostazioni → Suggerimenti.</string>
+    <string name="tut_symbols_title">Simboli e tasto emoji</string>
+    <string name="tut_symbols_body">I simboli sono nell\'ordine della Gboard, su tre pagine (tocca il tasto 1/3 per andare avanti), con la valuta della tua lingua dove c\'è il dollaro: l\'euro su una tastiera italiana, la sterlina su una britannica. In Impostazioni → Dimensioni e disposizione puoi togliere il tasto emoji per dare spazio alla barra spaziatrice: tenendo premuto il tasto ?123 si aprono le emoji.</string>
 </resources>

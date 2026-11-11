@@ -1,0 +1,4 @@
+Two languages at once: correction and prediction work in every active language together, so you can mix them without switching.
+SpaceTask: hold the space bar and the tools rise out of it; slide to one and let go. It replaces the three dots.
+The emoji key can be removed, and holding the symbols key opens the emoji.
+Symbols follow Gboard on three pages, with the currency of your language.

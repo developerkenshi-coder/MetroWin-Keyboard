@@ -1,5 +1,12 @@
 # Changelog
 
+## 26.2S
+
+- **Two languages at once:** the keyboard corrects and predicts in every active language together (up to four), so Italian and English can be mixed without switching. It reads the words just written to know which language the text is in (the newest words count most, one foreign word changes little), keeps the word before and, when you type in the middle of a text, the word after; a word that any of the languages knows is never corrected; each word is learned by the language it belongs to. *Settings → Suggestions → All active languages together*.
+- **SpaceTask:** hold the space bar and a row of places rises out of it with an animation: emoji, GIFs, translation, clipboard, voice typing, language, help, settings. Slide to one without lifting the finger and let go. It replaces the three dots of the bar. *Settings → Typing → SpaceTask*.
+- **Emoji key:** it can be removed, and the space bar takes its room (*Settings → Size and layout*). Holding the symbols key (?123) opens the emoji instead (*Settings → Typing*).
+- **Symbols:** the pages follow Gboard (numbers and common signs; maths, currencies and marks), with a third page for what is left (quotes, fractions, rare currencies). The currency of the language is where the dollar is: € for Italian, German, French, Spanish, Portuguese, Dutch and Greek, £ for British English, zł, Kč, kr, lei, ₺, ₽, ₴ and ₪ for their languages; the quotation marks of the language come first on the third page.
+
 ## 26.1.2S
 
 - **Landscape:** with the three-button navigation the bottom row of keys is no longer covered by the strip where the system draws its keyboard buttons. The calibration is usable on its side: the title makes room, so the sentence stays above the keyboard.

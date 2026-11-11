@@ -33,6 +33,10 @@ object K {
     const val CALIB_BIAS_LAND = "calibration_bias_land"
     const val CALIB_SIGMA = "calibration_sigma"         // spread of the taps in percent of a key, from the calibration
     const val SMART_CORRECT = "smart_correction"
+    const val EMOJI_KEY = "emoji_key"
+    const val SYMBOLS_EMOJI = "symbols_hold_emoji"
+    const val SPACE_TASK = "space_task"
+    const val MULTI_LANG = "multi_language"
     const val UPDATE_AUTO = "update_auto"
     const val UPDATE_LAST = "update_last_check"          // time of the last look for an update, ms
     const val UPDATE_RELEASE = "update_release"          // the newer release the last look found, as JSON, "" = none
@@ -133,6 +137,10 @@ class Prefs(context: Context) {
     fun calibBias(land: Boolean) = if (b(K.CALIB_ON, true)) Bias.decode(s(if (land) K.CALIB_BIAS_LAND else K.CALIB_BIAS, "")) else null
     val calibSigma get() = i(K.CALIB_SIGMA, 40).coerceIn(15, 90) / 100f
     val smartCorrect get() = b(K.SMART_CORRECT, true)
+    val emojiKey get() = b(K.EMOJI_KEY, true)
+    val symbolsHoldEmoji get() = b(K.SYMBOLS_EMOJI, true)
+    val spaceTask get() = b(K.SPACE_TASK, true)
+    val multiLanguage get() = b(K.MULTI_LANG, true)
     val updateAuto get() = b(K.UPDATE_AUTO, true)
     var updateLast: Long
         get() = sp.getLong(K.UPDATE_LAST, 0L)

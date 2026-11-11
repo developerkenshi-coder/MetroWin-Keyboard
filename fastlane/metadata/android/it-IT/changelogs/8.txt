@@ -1,0 +1,4 @@
+Due lingue insieme: correzione e previsione funzionano in tutte le lingue attive insieme, così le mescoli senza cambiare.
+SpaceTask: tieni premuta la barra spaziatrice e gli strumenti salgono; scorri su uno e rilascia. Sostituisce i tre puntini.
+Il tasto emoji si può togliere e tenendo premuto il tasto dei simboli si aprono le emoji.
+I simboli seguono Gboard su tre pagine, con la valuta della tua lingua.

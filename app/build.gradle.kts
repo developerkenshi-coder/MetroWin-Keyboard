@@ -14,8 +14,8 @@ android {
         applicationId = "com.metrowin.keyboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "26.1.2S"
+        versionCode = 8
+        versionName = "26.2S"
     }
 
     // The key of the official release comes from keystore.properties in the root of the project (never committed): storeFile,
@@ -64,6 +64,8 @@ android {
             isReturnDefaultValues = true
             // Robolectric needs the merged resources and assets to run the keyboard.
             isIncludeAndroidResources = true
+            // The correction benchmark loads five full dictionaries next to the Robolectric tests.
+            all { it.maxHeapSize = "2g" }
         }
     }
     lint { abortOnError = true }

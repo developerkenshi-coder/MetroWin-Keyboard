@@ -38,6 +38,7 @@ class SuggestionBar(context: Context) : View(context) {
     private var colors: KeyboardColors? = null
     private var slots: List<Slot?> = listOf(null, null, null)
     private var toolsOpen = false
+    private var menuButton = true             // the three dots; left out when SpaceTask is the menu
     private var status: String? = null
     private var voiceActive = false
     private var quick = Tool.CLIPBOARD
@@ -61,22 +62,27 @@ class SuggestionBar(context: Context) : View(context) {
     fun setVoiceActive(on: Boolean) { voiceActive = on; invalidate() }
     fun setQuickTool(t: Tool) { if (quick != t) { quick = t; invalidate() } }
     fun setBadge(on: Boolean) { if (badge != on) { badge = on; invalidate() } }
-    fun toggleTools() { toolsOpen = !toolsOpen; invalidate() }
+    /** Whether the three dots (the toolbox) are there; without them the suggestions have the room. */
+    fun setMenuButton(on: Boolean) { if (menuButton != on) { menuButton = on; if (!on) toolsOpen = false; invalidate() } }
+    fun toggleTools() { if (!menuButton) return; toolsOpen = !toolsOpen; invalidate() }
     fun closeTools() { if (toolsOpen) { toolsOpen = false; invalidate() } }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), dp(46f).toInt())
 
     private fun buttonWidth() = height * 1.1f
+    private fun leftWidth() = if (menuButton) buttonWidth() else 0f
 
     override fun onDraw(canvas: Canvas) {
         val c = colors ?: return
         canvas.drawColor(c.bar)
         val h = height.toFloat()
         val bw = buttonWidth()
-        if (pressedIndex == LEFT) highlight(canvas, c, 0f, bw)
-        icon.color = if (toolsOpen) c.accent else c.subtle
-        Icons.draw(canvas, Icon.ELLIPSIS, bw / 2f, h / 2f, h * 0.42f, icon)
+        if (menuButton) {
+            if (pressedIndex == LEFT) highlight(canvas, c, 0f, bw)
+            icon.color = if (toolsOpen) c.accent else c.subtle
+            Icons.draw(canvas, Icon.ELLIPSIS, bw / 2f, h / 2f, h * 0.42f, icon)
+        }
 
         // The quick button, drawn where the Windows Phone app bar keeps its main action.
         val qx = width - bw
@@ -85,8 +91,8 @@ class SuggestionBar(context: Context) : View(context) {
         Icons.draw(canvas, quick.icon, qx + bw / 2f, h / 2f, h * 0.42f, icon)
         if (badge) { fill.color = c.accent; canvas.drawCircle(qx + bw / 2f + h * 0.2f, h / 2f - h * 0.2f, h * 0.075f, fill) }
 
-        val x0 = bw
-        val w = width - 2 * bw
+        val x0 = leftWidth()
+        val w = width - x0 - bw
         val text = status
         if (text != null) {
             drawText(canvas, text, x0 + w / 2f, h / 2f, w - PAD, c.text, false, false)
@@ -180,13 +186,14 @@ class SuggestionBar(context: Context) : View(context) {
 
     private fun indexAt(x: Float): Int {
         val bw = buttonWidth()
-        if (x < bw) return LEFT
+        val lw = leftWidth()
+        if (menuButton && x < bw) return LEFT
         if (x > width - bw) return QUICK
-        val w = width - 2 * bw
-        if (scrolling()) return ((x - bw + scroll) / rowCell(w)).toInt().coerceIn(0, slots.size - 1)
-        if (toolsOpen && status == null) return ((x - bw) / (w / tools.size)).toInt().coerceIn(0, tools.size - 1)
+        val w = width - lw - bw
+        if (scrolling()) return ((x - lw + scroll) / rowCell(w)).toInt().coerceIn(0, slots.size - 1)
+        if (toolsOpen && status == null) return ((x - lw) / (w / tools.size)).toInt().coerceIn(0, tools.size - 1)
         val e = edges(w)
-        return (0..2).firstOrNull { x - bw < e[it + 1] } ?: 2
+        return (0..2).firstOrNull { x - lw < e[it + 1] } ?: 2
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -196,7 +203,7 @@ class SuggestionBar(context: Context) : View(context) {
             MotionEvent.ACTION_MOVE -> {
                 if (scrolling() && (dragging || (pressedIndex >= 0 && kotlin.math.abs(e.x - downX) > slop))) {
                     dragging = true; pressedIndex = NONE
-                    scroll = (scrollAtDown - (e.x - downX)).coerceIn(0f, maxScroll(width - 2 * buttonWidth()))
+                    scroll = (scrollAtDown - (e.x - downX)).coerceIn(0f, maxScroll(width - leftWidth() - buttonWidth()))
                     invalidate()
                 } else if (indexAt(e.x) != pressedIndex) { pressedIndex = NONE; invalidate() }
             }

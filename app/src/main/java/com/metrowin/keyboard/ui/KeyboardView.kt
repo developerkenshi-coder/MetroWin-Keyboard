@@ -48,7 +48,13 @@ interface KeyboardListener {
 
     /** Just before [onText] of a letter tapped on its key: how likely each key near the tap was the one meant (0..1), for the correction. */
     fun onTouch(likelihood: Map<Char, Float>) {}
+
+    /** SpaceTask: the finger held on the space bar slid to an item and let go on it. [id] is the item's id. */
+    fun onSpaceTask(id: String) {}
 }
+
+/** One place of the SpaceTask menu: an icon, a name shown while the finger is on it, and what the keyboard should do (by [id]). */
+data class TaskItem(val id: String, val icon: Icon, val label: String)
 
 /**
  * The keys. One custom view that lays the rows out, draws them in the theme, and turns touches into key presses, long-press
@@ -71,6 +77,12 @@ class KeyboardView(context: Context) : View(context) {
     private var widthPct = 100
     private var align = "center"
     private var bias: DoubleArray? = null
+    private var holdSymbolsEmoji = true
+    private var taskItems: List<TaskItem> = emptyList()
+    private var taskPointer: Pointer? = null
+    private var taskHover = -1
+    private var taskProgress = 0f
+    private var taskAnim: android.animation.ValueAnimator? = null
     private var touchSigma = 0.4f              // how far, in key sizes, a tap typically lands from the centre of the key meant
     private var longPressMs = 200L
     private var longPressEnabled = true
@@ -123,6 +135,74 @@ class KeyboardView(context: Context) : View(context) {
     /** The touch correction learned by the calibration (see [Bias]); null for none. It changes only where touches land, never how the keys look. */
     fun setBias(c: DoubleArray?) { bias = c }
     fun setTouchSigma(sigma: Float) { touchSigma = sigma }
+    /** Holding the symbols key goes straight to the emoji, so the emoji key can be left out. */
+    fun setHoldSymbolsEmoji(on: Boolean) { holdSymbolsEmoji = on }
+    /** The places of the SpaceTask menu, opened by holding the space bar; none turns SpaceTask off. */
+    fun setSpaceTask(items: List<TaskItem>) { taskItems = items; if (items.isEmpty()) closeTask() }
+
+    private fun openTask(p: Pointer) {
+        taskPointer = p; taskHover = -1; taskProgress = 0f
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        taskAnim?.cancel()
+        taskAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 260; interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+            addUpdateListener { taskProgress = it.animatedValue as Float; invalidate() }
+            start()
+        }
+        invalidate()
+    }
+
+    private fun closeTask() {
+        taskAnim?.cancel(); taskAnim = null
+        if (taskPointer != null || taskHover != -1) { taskPointer = null; taskHover = -1; taskProgress = 0f; invalidate() }
+    }
+
+    private fun spaceTop() = page?.keys?.firstOrNull { it.type == KeyType.SPACE }?.top ?: (height * 0.8f)
+
+    /** The size of an item, and where the row of them sits: just above the space bar, across the width. */
+    private fun taskItemSize() = minOf(dp(54f), (width - dp(16f)) / taskItems.size.coerceAtLeast(1) - dp(6f))
+    private fun taskCentreY() = (spaceTop() - taskItemSize() * 0.85f).coerceAtLeast(taskItemSize() * 0.75f)
+
+    /** The item under the finger: the one in the column of the finger, once the finger is above the space bar. */
+    private fun updateTaskHover(x: Float, y: Float) {
+        val n = taskItems.size
+        val now = if (n == 0 || y > spaceTop() - dp(4f)) -1 else (x / (width.toFloat() / n)).toInt().coerceIn(0, n - 1)
+        if (now != taskHover) {
+            taskHover = now
+            if (now >= 0) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            invalidate()
+        }
+    }
+
+    private fun drawTask(canvas: Canvas, c: KeyboardColors) {
+        if (taskPointer == null || taskItems.isEmpty()) return
+        val pr = taskProgress.coerceIn(0f, 1f)
+        // The keys step back, and the menu rises out of the space bar, one place after the other.
+        canvas.drawColor(ColorMath.withAlpha(c.background, (0xC8 * pr).toInt()))
+        val n = taskItems.size
+        val size = taskItemSize()
+        val cell = width.toFloat() / n
+        val cy = taskCentreY()
+        val rise = dp(26f)
+        taskItems.forEachIndexed { i, item ->
+            val t = (pr * 1.5f - i * 0.06f).coerceIn(0f, 1f)
+            val scale = 0.35f + 0.65f * t
+            val cx = cell * (i + 0.5f)
+            val y = cy + (1f - t) * rise
+            val hover = i == taskHover
+            val r = size / 2f * scale * (if (hover) 1.14f else 1f)
+            keyPaint.style = Paint.Style.FILL
+            keyPaint.color = ColorMath.withAlpha(if (hover) c.accent else c.key, (0xFF * t).toInt())
+            canvas.drawCircle(cx, y - (if (hover) dp(6f) else 0f), r, keyPaint)
+            iconPaint.color = ColorMath.withAlpha(if (hover) c.onAccent else c.text, (0xFF * t).toInt())
+            Icons.draw(canvas, item.icon, cx, y - (if (hover) dp(6f) else 0f), r * 1.0f, iconPaint)
+        }
+        if (taskHover >= 0) {
+            textPaint.color = c.text; textPaint.textSize = dp(15f); textPaint.typeface = Fonts.semibold(context)
+            val m = textPaint.fontMetrics
+            canvas.drawText(taskItems[taskHover].label, width / 2f, cy - size * 0.95f - (m.ascent + m.descent) / 2f, textPaint)
+        }
+    }
 
     /** For each letter key near a tap, how likely it is the key meant: a Gaussian of the distance from the tap to the key centre in key sizes. */
     private fun touchLikelihood(rawX: Float, rawY: Float): Map<Char, Float> {
@@ -198,6 +278,7 @@ class KeyboardView(context: Context) : View(context) {
         drawPopup(canvas, c)
         drawPreview(canvas, c)
         drawTrail(canvas, c)
+        drawTask(canvas, c)
     }
 
     private fun drawBackground(canvas: Canvas, c: KeyboardColors) {
@@ -395,7 +476,7 @@ class KeyboardView(context: Context) : View(context) {
                 listener?.onFunction(key, false)
                 scheduleRepeat(p)
             }
-            else -> if (canLongPress(key)) postDelayed(longPressRunnable(p), longPressMs)
+            else -> if (canLongPress(key)) postDelayed(longPressRunnable(p), if (key.type == KeyType.SPACE && taskItems.isNotEmpty()) maxOf(longPressMs, 380L) else longPressMs)
         }
         invalidate()
     }
@@ -403,7 +484,8 @@ class KeyboardView(context: Context) : View(context) {
     private fun canLongPress(key: Key) = when (key.type) {
         KeyType.CHAR -> longPressEnabled && key.popups.isNotEmpty()
         KeyType.SHIFT -> true
-        KeyType.SPACE -> spaceSwitchesLanguage
+        KeyType.SPACE -> taskItems.isNotEmpty() || spaceSwitchesLanguage
+        KeyType.SYMBOLS -> holdSymbolsEmoji
         else -> false
     }
 
@@ -414,6 +496,8 @@ class KeyboardView(context: Context) : View(context) {
             if (k !== p.startKey) return
             p.longFired = true
             if (k.type == KeyType.SHIFT) { listener?.onShiftLongPress(); return }
+            if (k.type == KeyType.SYMBOLS) { performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); listener?.onFunction(Key(KeyType.EMOJI), false); return }
+            if (k.type == KeyType.SPACE && taskItems.isNotEmpty()) { openTask(p); return }
             if (k.type == KeyType.SPACE) { performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); listener?.onFunction(Key(KeyType.LANGUAGE), false); return }
             p.popupKey = k; p.popupIndex = 0
             performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
@@ -437,6 +521,7 @@ class KeyboardView(context: Context) : View(context) {
 
     private fun move(id: Int, x: Float, y: Float) {
         val p = pointers[id] ?: return
+        if (taskPointer === p) { updateTaskHover(x, y); return }
         p.path += SwipePoint(x, y)
         val start = p.startKey
 
@@ -479,6 +564,13 @@ class KeyboardView(context: Context) : View(context) {
     private fun up(id: Int, x: Float, y: Float, cancel: Boolean) {
         val p = pointers.remove(id) ?: return
         p.repeat?.let { removeCallbacks(it) }
+        if (taskPointer === p) {
+            val chosen = taskHover
+            closeTask()
+            if (!cancel && chosen >= 0) taskItems.getOrNull(chosen)?.let { listener?.onSpaceTask(it.id) }
+            invalidate()
+            return
+        }
         if (!cancel) {
             when {
                 p.popupKey != null -> {
@@ -513,6 +605,6 @@ class KeyboardView(context: Context) : View(context) {
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        pointers.clear()
+        pointers.clear(); closeTask()
     }
 }

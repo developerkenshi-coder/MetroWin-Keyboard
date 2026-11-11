@@ -2,7 +2,7 @@ package com.metrowin.keyboard.layout
 
 enum class KeyType { CHAR, SHIFT, BACKSPACE, ENTER, SPACE, SYMBOLS, SYMBOLS_PAGE, EMOJI, LANGUAGE }
 
-enum class Page { LETTERS, SYMBOLS_1, SYMBOLS_2, NUMBERS }
+enum class Page { LETTERS, SYMBOLS_1, SYMBOLS_2, SYMBOLS_3, NUMBERS }
 
 /**
  * A key of the keyboard. [label] is what a CHAR key types (lower case; the shift state decides the case). Position and size are
@@ -74,7 +74,7 @@ object KeyboardBuilder {
         "@" to listOf("©", "®", "™"),
     )
 
-    fun letters(layout: LanguageLayout, showNumberRow: Boolean, showHints: Boolean, multiLanguage: Boolean): KeyboardPage {
+    fun letters(layout: LanguageLayout, showNumberRow: Boolean, showHints: Boolean, multiLanguage: Boolean, showEmoji: Boolean = true): KeyboardPage {
         val rows = ArrayList<List<Key>>()
         if (showNumberRow) rows += digits.map { d -> Key(KeyType.CHAR, d, popups = withBase(d, symbolPopups[d].orEmpty())) }
         layout.rows.forEachIndexed { index, letters ->
@@ -92,23 +92,45 @@ object KeyboardBuilder {
             if (isLast) keys += Key(KeyType.BACKSPACE, weight = 1.5f, special = true)
             rows += keys
         }
-        rows += bottomRow("?123", KeyType.SYMBOLS, multiLanguage)
+        rows += bottomRow("?123", KeyType.SYMBOLS, multiLanguage, showEmoji)
         return KeyboardPage(rows)
     }
 
-    fun symbols(page: Page, showNumberRow: Boolean): KeyboardPage {
+    /**
+     * The symbol pages, in the order of Gboard: page 1 the numbers and the common signs, page 2 the maths, the currencies and the marks,
+     * page 3 what is left (quotes, fractions, rare currencies). The currency of the language is where Gboard has the dollar, and the quotes
+     * of the language come first on page 3, so "€" is at hand on an Italian keyboard and "£" on a British one.
+     */
+    fun symbols(page: Page, showNumberRow: Boolean, layout: LanguageLayout? = null, showEmoji: Boolean = true): KeyboardPage {
         val rows = ArrayList<List<Key>>()
         fun chars(s: String) = s.split(' ').map { c -> Key(KeyType.CHAR, c, popups = withBase(c, symbolPopups[c].orEmpty())) }
-        if (page == Page.SYMBOLS_1) {
-            rows += chars("1 2 3 4 5 6 7 8 9 0")
-            rows += chars("@ # $ % & - + ( )")
-            rows += listOf(Key(KeyType.SYMBOLS_PAGE, "=\\<", 1.5f, special = true)) + chars("* \" ' : ; ! ?") + Key(KeyType.BACKSPACE, weight = 1.5f, special = true)
-        } else {
-            rows += chars("~ ` | • √ π ÷ × ¶ ∆")
-            rows += chars("£ ¢ € ¥ ^ ° = { }")
-            rows += listOf(Key(KeyType.SYMBOLS_PAGE, "?123", 1.5f, special = true)) + chars("\\ © ® ™ [ ] <") + Key(KeyType.BACKSPACE, weight = 1.5f, special = true)
+        fun toggle(n: Int) = Key(KeyType.SYMBOLS_PAGE, "$n/3", 1.5f, special = true)
+        val backspace = Key(KeyType.BACKSPACE, weight = 1.5f, special = true)
+        val local = layout?.let { LocaleSymbols.currency(it) } ?: "$"
+        when (page) {
+            Page.SYMBOLS_1 -> {
+                rows += chars("1 2 3 4 5 6 7 8 9 0")
+                val currency = Key(KeyType.CHAR, local, popups = withBase(local, "$ € £ ¥ ₹ ¢ ₩".split(' ').filter { it != local }))
+                rows += chars("@ #") + currency + chars("_ & - + ( ) /")
+                rows += listOf(toggle(1)) + chars("* \" ' : ; ! ?") + backspace
+            }
+            Page.SYMBOLS_2 -> {
+                rows += chars("~ ` | • √ π ÷ × ¶ ∆")
+                // Gboard's four (£ ¢ € ¥), the dollar in the place of the one that is already on page 1; a currency of another kind
+                // takes the place of the cent sign, so the dollar and the euro are always somewhere.
+                val base = "£ ¢ € ¥ $".split(' ').filter { it != local }
+                val money = (if (base.size > 4) base.filter { it != "¢" } else base).joinToString(" ")
+                rows += chars("$money ^ ° = { } \\")
+                rows += listOf(toggle(2)) + chars("% © ® ™ ✓ [ ]") + backspace
+            }
+            else -> {
+                val quotes = (LocaleSymbols.quotesFirst(layout) + "« » „ “ ” ‘ ’ ¿ ¡ ¤".split(' ')).distinct().take(10)
+                rows += quotes.map { c -> Key(KeyType.CHAR, c, popups = withBase(c, symbolPopups[c].orEmpty())) }
+                rows += chars("¹ ² ³ ½ ¼ ¾ § ± ‰ µ")
+                rows += listOf(toggle(3)) + chars("₹ ₩ ₺ ₽ ₴ ₪ ₿") + backspace
+            }
         }
-        rows += bottomRow("ABC", KeyType.SYMBOLS, false)
+        rows += bottomRow("ABC", KeyType.SYMBOLS, false, showEmoji)
         return KeyboardPage(rows)
     }
 
@@ -123,13 +145,39 @@ object KeyboardBuilder {
         return KeyboardPage(rows)
     }
 
-    private fun bottomRow(toggleLabel: String, toggleType: KeyType, multiLanguage: Boolean): List<Key> = buildList {
+    private fun bottomRow(toggleLabel: String, toggleType: KeyType, multiLanguage: Boolean, showEmoji: Boolean): List<Key> = buildList {
         add(Key(toggleType, toggleLabel, 1.5f, special = true))
-        add(Key(KeyType.EMOJI, "☺", 1f, special = true))
+        if (showEmoji) add(Key(KeyType.EMOJI, "☺", 1f, special = true))
         if (multiLanguage) add(Key(KeyType.LANGUAGE, "", 1f, special = true))
         add(Key(KeyType.CHAR, ",", 0.8f, popups = withBase(",", symbolPopups[","].orEmpty())))
-        add(Key(KeyType.SPACE, "", if (multiLanguage) 3.2f else 4.2f))
+        // The space bar takes the room of the keys that are not there.
+        add(Key(KeyType.SPACE, "", 4.2f - (if (multiLanguage) 1f else 0f) + (if (showEmoji) 0f else 1f)))
         add(Key(KeyType.CHAR, ".", 0.8f, popups = withBase(".", symbolPopups["."].orEmpty())))
         add(Key(KeyType.ENTER, "", 1.5f, special = true))
+    }
+}
+
+/** What a language adds to the symbols: the currency it writes, and the quotation marks it uses first. */
+object LocaleSymbols {
+    fun currency(layout: LanguageLayout): String = when (layout.id.substringBefore('-')) {
+        "en" -> if (layout.locale.country == "GB") "£" else "$"
+        "it", "es", "fr", "de", "pt", "nl", "el" -> "€"
+        "pl" -> "zł"
+        "tr" -> "₺"
+        "ru" -> "₽"
+        "uk" -> "₴"
+        "cs" -> "Kč"
+        "sv" -> "kr"
+        "ro" -> "lei"
+        "he" -> "₪"
+        else -> "$"
+    }
+
+    fun quotesFirst(layout: LanguageLayout?): List<String> = when (layout?.id?.substringBefore('-')) {
+        "es" -> listOf("¿", "¡", "«", "»")
+        "de", "cs" -> listOf("„", "“", "»", "«")
+        "pl", "ro" -> listOf("„", "”", "«", "»")
+        "fr", "it", "pt", "ru", "uk", "el" -> listOf("«", "»", "“", "”")
+        else -> listOf("“", "”", "‘", "’")
     }
 }

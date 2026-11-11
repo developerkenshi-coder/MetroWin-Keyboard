@@ -12,6 +12,8 @@ data class Candidate(val word: String, val score: Double, val distance: Int = 0)
  */
 class WordDictionary(words: List<String>, freqs: List<Int>) {
     val size: Int = words.size
+    /** The sum of all the frequencies: what a word's count is measured against when asking which language a text is in. */
+    val totalFrequency: Long by lazy { freq.sumOf { it.toLong() } }
     private val word: Array<String>
     private val freq: IntArray
     private val folded: Array<String>

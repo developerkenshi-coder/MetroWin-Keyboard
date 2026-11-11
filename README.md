@@ -42,11 +42,13 @@ Android 8.0 (API 26) or newer.
 
 **Typing**
 - Swipe typing, hold a key for accents, digits and symbols (hold time in ms, 200 by default), double space for a full stop, automatic capitals, slide on the space bar to move the cursor.
+- **Two languages at once**: correction and prediction work in every active language together (up to four), so you can mix Italian and English without switching. It follows the words you just wrote, the one before and, when you type in the middle of a text, the one after; each word is learned by the language it belongs to.
+- **Symbols like Gboard**: three pages (numbers and common signs; maths, currencies and marks; quotes, fractions and the rest), with the currency of your language where the dollar is (€, £, zł, Kč, kr, lei, ₺, ₽, ₴, ₪). Hold the symbols key to open the emoji instead, and the emoji key can be removed to lengthen the space bar.
 - A colour preview of the key you press, as on Windows Phone.
 - Correction that **Backspace undoes** and learns from (smart: it weighs where your finger landed, the words around it and what you undid before; it offers a missing space), accent fixing, completion, next-word and phrase prediction, offensive words blocked (plus your own list).
 - Learns from you, **on the phone only**; never in password fields; exportable and erasable.
 
-**Tools**, one tap from the bar: the three dots open the toolbox, and a **quick button** goes straight to the clipboard (or any tool you choose), with a dot when something new was copied.
+**Tools**, one tap from the bar. **SpaceTask**: hold the space bar and the tools rise out of it with an animation; slide to one without lifting the finger and let go. (With SpaceTask off, the three dots open the toolbox.) A **quick button** goes straight to the clipboard (or any tool you choose), with a dot when something new was copied.
 - **Clipboard** history with a limit you choose, pinned items and **pictures**.
 - **Translate** the field, or what you just copied (handy for messages you received), between 40 languages. Google by default; Google Cloud, DeepL, LibreTranslate or MyMemory can be chosen.
 - **GIF** from a source you choose: GIPHY, Tenor, Klipy or Imgur (your own free key; a button opens the page to get it), a folder on the phone, or any JSON service you describe, with a content level from G to R.

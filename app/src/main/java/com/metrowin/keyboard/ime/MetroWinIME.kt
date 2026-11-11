@@ -30,6 +30,7 @@ import com.metrowin.keyboard.R
 import com.metrowin.keyboard.clipboard.ClipItem
 import com.metrowin.keyboard.emoji.EmojiData
 import com.metrowin.keyboard.emoji.EmojiIndex
+import com.metrowin.keyboard.engine.Polyglot
 import com.metrowin.keyboard.engine.LanguageEngine
 import com.metrowin.keyboard.engine.SuggestOptions
 import com.metrowin.keyboard.engine.SwipePoint
@@ -60,6 +61,7 @@ import com.metrowin.keyboard.ui.GifPanel
 import com.metrowin.keyboard.ui.Icon
 import com.metrowin.keyboard.ui.ImageLoader
 import com.metrowin.keyboard.ui.KeyboardListener
+import com.metrowin.keyboard.ui.TaskItem
 import com.metrowin.keyboard.ui.KeyboardView
 import com.metrowin.keyboard.ui.Slot
 import com.metrowin.keyboard.ui.SuggestionBar
@@ -133,6 +135,9 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
     private var pendingTouch: Map<Char, Float>? = null
     private var prevWord: String? = null
     private var prevWord2: String? = null
+    // The words of the text before the cursor (for the language of the text) and the one after it, when typing in the middle.
+    private var ctxWords: List<String> = emptyList()
+    private var afterWord: String? = null
     private var latest: WordSuggestions? = null
     private var suggestSeq = 0
     private var lastCorrection: Correction? = null
@@ -373,7 +378,7 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
         kb.setBackgroundImage(backgroundBitmap(), prefs.imageDim)
         val land = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         kb.setMetrics(if (land) prefs.keyHeightLand else prefs.keyHeight, prefs.keyGap, prefs.keyboardWidth, prefs.keyboardAlign)
-        kb.setBias(prefs.calibBias(land)); kb.setTouchSigma(prefs.calibSigma)
+        kb.setBias(prefs.calibBias(land)); kb.setTouchSigma(prefs.calibSigma); kb.setHoldSymbolsEmoji(prefs.symbolsHoldEmoji); kb.setSpaceTask(spaceTaskItems()); bar?.setMenuButton(!prefs.spaceTask)
         kb.setBehavior(prefs.longPressSymbols, prefs.longPressMs, prefs.swipe && field == Field.TEXT, prefs.spaceCursor, prefs.keyHints, prefs.keyPreview)
         bar?.setQuickTool(Tool.from(prefs.quickTool)); bar?.setBadge(clipBadge && Tool.from(prefs.quickTool) == Tool.CLIPBOARD)
         clipboardPanel?.setImagesEnabled(prefs.clipboardImages)
@@ -393,8 +398,8 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
         // shouldOfferSwitchingToNextInputMethod is from Android 9; on 8.x only our own languages can be switched.
         val multi = (several || (Build.VERSION.SDK_INT >= 28 && shouldOfferSwitchingToNextInputMethod())) && prefs.languageKey
         val p = when (page) {
-            Page.LETTERS -> KeyboardBuilder.letters(layout, prefs.numberRow, prefs.keyHints, multi)
-            Page.SYMBOLS_1, Page.SYMBOLS_2 -> KeyboardBuilder.symbols(page, prefs.numberRow)
+            Page.LETTERS -> KeyboardBuilder.letters(layout, prefs.numberRow, prefs.keyHints, multi, prefs.emojiKey)
+            Page.SYMBOLS_1, Page.SYMBOLS_2, Page.SYMBOLS_3 -> KeyboardBuilder.symbols(page, prefs.numberRow, layout, prefs.emojiKey)
             Page.NUMBERS -> KeyboardBuilder.numbers(field == Field.PHONE)
         }
         kb.setPage(p)
@@ -419,13 +424,24 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
     /** Reads the two words before the cursor (not the one being typed), for the next-word prediction. */
     private fun refreshContext() {
         val ic = currentInputConnection ?: return
-        if (field != Field.TEXT) { prevWord = null; prevWord2 = null; return }
-        val before = ic.getTextBeforeCursor(80, 0) ?: return
+        if (field != Field.TEXT) { prevWord = null; prevWord2 = null; ctxWords = emptyList(); afterWord = null; return }
+        val before = ic.getTextBeforeCursor(240, 0) ?: return
         val join = currentLayout().joinApostrophe
         val text = if (composing.isNotEmpty() && before.length >= composing.length) before.subSequence(0, before.length - composing.length) else before
         // A word right against the cursor and not being typed is not a context (the user tapped in the middle of text).
         val words = if (composing.isEmpty() && text.isNotEmpty() && text.last() != ' ' && text.last() != '\n') emptyList() else Text.previousWords(text, join, 2)
         prevWord = words.getOrNull(0); prevWord2 = words.getOrNull(1)
+        ctxWords = Polyglot.recentWords(text)
+        // The next word counts only when the cursor sits before a space and a word; against a word it would be the rest of the same one.
+        afterWord = ic.getTextAfterCursor(40, 0)?.let { a -> a.trimStart().takeIf { a.isNotEmpty() && a[0].isWhitespace() && it.firstOrNull()?.isLetter() == true } }
+            ?.let { Regex("\\p{L}+").find(it)?.value?.lowercase() }
+    }
+
+    /** The engines of the active languages that are loaded, the keyboard's own first; just the current one when the languages are not mixed. */
+    private fun cachedEngines(): List<LanguageEngine> {
+        val home = currentLayout().id
+        val ids = if (prefs.multiLanguage) (listOf(home) + activeLayouts().map { it.id }.filter { it != home }).take(4) else listOf(home)
+        return ids.mapNotNull { app.cachedEngine(it) }
     }
 
     private fun updateShiftFromCursor() {
@@ -469,7 +485,7 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
             KeyType.ENTER -> { lastSwipe = null; enter() }
             KeyType.SPACE -> { lastSwipe = null; space() }
             KeyType.SYMBOLS -> { finishWord(false); page = if (page == Page.LETTERS) Page.SYMBOLS_1 else Page.LETTERS; applyKeyboardPage() }
-            KeyType.SYMBOLS_PAGE -> { page = if (page == Page.SYMBOLS_1) Page.SYMBOLS_2 else Page.SYMBOLS_1; applyKeyboardPage() }
+            KeyType.SYMBOLS_PAGE -> { page = when (page) { Page.SYMBOLS_1 -> Page.SYMBOLS_2; Page.SYMBOLS_2 -> Page.SYMBOLS_3; else -> Page.SYMBOLS_1 }; applyKeyboardPage() }
             KeyType.EMOJI -> { finishWord(false); showPanel(Panel.EMOJI) }
             KeyType.LANGUAGE -> switchLanguage()
             KeyType.CHAR -> typeText(key.label)
@@ -595,7 +611,10 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
                 ic.setComposingText(composing, 1)
                 ic.endBatchEdit()
                 lastCorrection = null
-                if (learningOn) engine?.user?.let { it.learn(null, lc.typed.lowercase()); it.reject(lc.typed.lowercase(), lc.corrected.lowercase()) }
+                if (learningOn) {
+                    engine?.user?.learn(null, lc.typed.lowercase())
+                    for (e in cachedEngines().ifEmpty { listOfNotNull(engine) }) e.user.reject(lc.typed.lowercase(), lc.corrected.lowercase())
+                }
                 updateSuggestions()
                 return
             }
@@ -626,7 +645,11 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
 
     private fun learn(word: String) {
         val w = word.lowercase()
-        if (learningOn && w.length >= 2 && w.none { it.isDigit() } && engine?.blocklist?.contains(w) != true) engine?.user?.learn(prevWord2, prevWord, w)
+        if (learningOn && w.length >= 2 && w.none { it.isDigit() }) {
+            // The word is learned by the language it belongs to, which is not always the one of the keys.
+            val target = Polyglot(cachedEngines().ifEmpty { listOfNotNull(engine) }).learnTarget(w, ctxWords)
+            if (target != null && !target.blocklist.contains(w)) target.user.learn(prevWord2, prevWord, w)
+        }
         prevWord2 = prevWord; prevWord = w
     }
 
@@ -652,14 +675,19 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
         val opts = options()
         val p1 = prevWord; val p2 = prevWord2
         val touch = touchOf(typed)
+        val ctx = ctxWords; val after = afterWord
+        val home = currentLayout().id
+        val ids = if (prefs.multiLanguage) (listOf(home) + activeLayouts().map { it.id }.filter { it != home }).take(4) else listOf(home)
         worker.execute {
             if (seq != suggestSeq) return@execute
+            // All the active languages together (loading one that is not loaded yet takes a moment, here, off the main thread).
+            val poly = Polyglot(ids.mapNotNull { id -> if (id == eng.layout.id) eng else runCatching { app.engine(id) }.getOrNull() }.ifEmpty { listOf(eng) })
             if (typed.isNotEmpty()) {
-                val r = eng.suggester.forTyped(typed, p1, opts, touch)
+                val r = poly.forTyped(typed, p1, p2, after, opts, touch, ctx)
                 main.post { if (seq == suggestSeq) { latest = r; showWordSlots(r) } }
             } else {
-                val next = eng.suggester.nextWords(p1, p2, 3, opts)
-                val phrase = eng.suggester.phrase(p1, opts)
+                val next = poly.nextWords(p1, p2, 3, opts, ctx)
+                val phrase = poly.phrase(p1, opts, ctx)
                 main.post { if (seq == suggestSeq) { latest = null; showNextSlots(next, phrase) } }
             }
         }
@@ -765,6 +793,34 @@ open class MetroWinIME : InputMethodService(), KeyboardListener, SuggestionBar.L
     }
 
     // --- bar tools --------------------------------------------------------------------------------------------------
+
+    /** What the SpaceTask menu offers, in the order of the row; none when SpaceTask is switched off. */
+    private fun spaceTaskItems(): List<TaskItem> {
+        if (!prefs.spaceTask) return emptyList()
+        return buildList {
+            add(TaskItem("emoji", Icon.EMOJI, getString(R.string.st_emoji)))
+            add(TaskItem("gif", Icon.GIF, getString(R.string.st_gif)))
+            add(TaskItem("translate", Icon.TRANSLATE, getString(R.string.st_translate)))
+            add(TaskItem("clipboard", Icon.CLIPBOARD, getString(R.string.st_clipboard)))
+            add(TaskItem("mic", Icon.MIC, getString(R.string.st_voice)))
+            if (activeLayouts().size > 1 || (Build.VERSION.SDK_INT >= 28 && shouldOfferSwitchingToNextInputMethod())) add(TaskItem("language", Icon.GLOBE, getString(R.string.st_language)))
+            add(TaskItem("help", Icon.HELP, getString(R.string.st_help)))
+            add(TaskItem("settings", Icon.SETTINGS, getString(R.string.st_settings)))
+        }
+    }
+
+    override fun onSpaceTask(id: String) {
+        when (id) {
+            "emoji" -> onTool(Tool.EMOJI)
+            "gif" -> onTool(Tool.GIF)
+            "translate" -> onTool(Tool.TRANSLATE)
+            "clipboard" -> onTool(Tool.CLIPBOARD)
+            "mic" -> onTool(Tool.MIC)
+            "help" -> onTool(Tool.HELP)
+            "settings" -> onTool(Tool.SETTINGS)
+            "language" -> switchLanguage()
+        }
+    }
 
     override fun onTool(tool: Tool) {
         when (tool) {

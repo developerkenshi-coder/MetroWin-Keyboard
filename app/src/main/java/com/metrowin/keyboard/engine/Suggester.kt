@@ -14,7 +14,11 @@ data class SuggestOptions(
 )
 
 /** What the bar shows while a word is being typed. [autocorrect] is the word that replaces [typed] when the user ends it. */
-data class WordSuggestions(val typed: String, val candidates: List<String>, val autocorrect: String?, val typedIsKnown: Boolean)
+data class WordSuggestions(
+    val typed: String, val candidates: List<String>, val autocorrect: String?, val typedIsKnown: Boolean,
+    /** The best words with their scores (as in the dictionary, no case), the score of the automatic fix and whether two fixes were too alike: what [Polyglot] needs to put languages side by side. */
+    val scored: List<Pair<String, Double>> = emptyList(), val autoScore: Double? = null, val ambiguous: Boolean = false,
+)
 
 /**
  * Turns a dictionary, the user's own model and a blocklist into suggestions: completions of the word being typed, typo
@@ -37,13 +41,14 @@ class Suggester(
     }
 
     /** [touch]: for each letter of [typed], how likely each key near the tap was meant (null where not known). */
-    fun forTyped(typed: String, previous: String?, o: SuggestOptions, touch: List<Touch?>? = null): WordSuggestions {
+    /** [before] is the word two back, [after] the word that follows the one being typed (when it is typed in the middle of a text). */
+    fun forTyped(typed: String, previous: String?, o: SuggestOptions, touch: List<Touch?>? = null, before: String? = null, after: String? = null): WordSuggestions {
         val lower = typed.lowercase(locale)
         // "l'amicho": the word is what follows the apostrophe; "l'" stays as it is and is put back on each suggestion.
         val cut = typed.indexOfFirst { Text.isApostrophe(it) }
         if (cut > 0 && cut < typed.length - 1 && !dictionary.contains(lower)) {
             val head = typed.substring(0, cut + 1)
-            val r = forTyped(typed.substring(cut + 1), previous, o, touch?.drop(cut + 1))
+            val r = forTyped(typed.substring(cut + 1), previous, o, touch?.drop(cut + 1), before, after)
             return WordSuggestions(typed, r.candidates.map { head + it }, r.autocorrect?.let { head + it }, r.typedIsKnown)
         }
         val known = isKnown(typed)
@@ -72,7 +77,7 @@ class Suggester(
                 // Each neighbour is priced by how likely the slip was (the finger, the keyboard map) against how likely the word is
                 // (its frequency, the word before it): the best one is not the nearest by spelling but the likeliest overall.
                 val ranked = dictionary.similar(lower, maxD, 12, skip)
-                    .map { c -> Candidate(c.word, rescore(typed, c, previous, o, touch, corrector), c.distance) }
+                    .map { c -> Candidate(c.word, rescore(typed, c, previous, before, after, o, touch, corrector), c.distance) }
                     .sortedByDescending { it.score }
                 for (c in ranked) scores[c.word] = maxOf(scores[c.word] ?: Double.NEGATIVE_INFINITY, c.score)
                 fix = ranked.firstOrNull()
@@ -95,15 +100,25 @@ class Suggester(
         val list = ArrayList<String>()
         if (auto != null) list += auto
         for (w in ordered) if (w != auto && list.size < 6) list += w
-        return WordSuggestions(typed, list.map { Text.matchCase(typed, it, locale) }, auto?.let { Text.matchCase(typed, it, locale) }, known)
+        return WordSuggestions(
+            typed, list.map { Text.matchCase(typed, it, locale) }, auto?.let { Text.matchCase(typed, it, locale) }, known,
+            ordered.take(12).map { it to (scores[it] ?: 0.0) }, if (auto != null) fix?.score else null, ambiguous,
+        )
     }
 
-    private fun rescore(typed: String, c: Candidate, previous: String?, o: SuggestOptions, touch: List<Touch?>?, corrector: Corrector): Double {
+    private fun rescore(typed: String, c: Candidate, previous: String?, before: String?, after: String?, o: SuggestOptions, touch: List<Touch?>?, corrector: Corrector): Double {
         var s = Math.log1p(dictionary.frequency(c.word).toDouble()) - corrector.cost(typed, c.word, touch)
         if (c.distance == 0) s += ACCENT_BONUS
         if (previous != null) {
             if (o.usePersonal) user.followerCount(previous, c.word).let { if (it > 0) s += 2.5 + Math.log1p(it.toDouble()) }
             seed.count(previous, c.word).let { if (it > 0) s += 0.8 * Math.log1p(it.toDouble()) }
+            // Two words of habit beat one: "ho una" makes "casa" likelier than "cosa" when the user has written it before.
+            if (o.usePersonal && before != null) user.followerCount("$before $previous", c.word).let { if (it > 0) s += 3.0 + Math.log1p(it.toDouble()) }
+        }
+        // The word that comes after, when the text is edited in the middle: the candidate must also lead to it.
+        if (after != null) {
+            if (o.usePersonal) user.followerCount(c.word, after).let { if (it > 0) s += 2.0 + Math.log1p(it.toDouble()) }
+            seed.count(c.word, after).let { if (it > 0) s += 0.6 * Math.log1p(it.toDouble()) }
         }
         return s
     }
@@ -132,7 +147,9 @@ class Suggester(
     }
 
     /** Words likely to come after [previous] (and [before], the word before that), best first. */
-    fun nextWords(previous: String?, before: String?, limit: Int, o: SuggestOptions): List<String> {
+    fun nextWords(previous: String?, before: String?, limit: Int, o: SuggestOptions): List<String> = nextWordsScored(previous, before, limit, o).map { it.first }
+
+    fun nextWordsScored(previous: String?, before: String?, limit: Int, o: SuggestOptions): List<Pair<String, Double>> {
         if (!o.nextWord) return emptyList()
         val out = LinkedHashMap<String, Double>()
         // What the user has typed comes first, and a habit of three words beats one of two.
@@ -144,7 +161,7 @@ class Suggester(
         for ((w, n) in seed.after(previous)) if (!blocked(w, o)) out.putIfAbsent(w, Math.log1p(n.toDouble()) + 0.3 * Math.log1p(dictionary.frequency(w).toDouble()))
         // Nothing known: the most common words of the language are a fair guess, so the bar is never empty.
         if (out.size < limit) for (c in dictionary.top(limit * 2) { blocked(it, o) }) out.putIfAbsent(c.word, c.score * 0.1)
-        return out.entries.sortedByDescending { it.value }.map { it.key }.take(limit)
+        return out.entries.sortedByDescending { it.value }.map { it.key to it.value }.take(limit)
     }
 
     /** A short phrase (2 or 3 words) that continues from [previous], built from the user's own habits, or null. */

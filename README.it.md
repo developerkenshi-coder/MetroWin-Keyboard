@@ -37,11 +37,13 @@ Android 8.0 (API 26) o successivo.
 
 **Scrittura**
 - Scrittura a scorrimento, tocco prolungato per accenti, cifre e simboli (durata in ms, 200 di default), doppio spazio per il punto, maiuscole automatiche, scorrimento sulla barra spaziatrice per muovere il cursore.
+- **Due lingue insieme**: correzione e previsione funzionano in tutte le lingue attive insieme (fino a quattro), così puoi mescolare italiano e inglese senza cambiare. Segue le parole appena scritte, quella prima e, se scrivi in mezzo a un testo, quella dopo; ogni parola viene imparata dalla lingua a cui appartiene.
+- **Simboli come Gboard**: tre pagine (numeri e segni comuni; matematica, valute e segni; virgolette, frazioni e il resto), con la valuta della tua lingua al posto del dollaro (€, £, zł, Kč, kr, lei, ₺, ₽, ₴, ₪). Tenendo premuto il tasto dei simboli si aprono le emoji, e il tasto emoji si può togliere per allungare la barra spaziatrice.
 - Anteprima a colori del tasto che premi, come su Windows Phone.
 - Correzione che **Backspace annulla** e da cui impara (intelligente: pesa dove è caduto il dito, le parole intorno e ciò che hai annullato; propone lo spazio mancante), accenti, completamento, previsione della parola successiva e della frase, parole offensive bloccate (più la tua lista).
 - Impara da te, **solo sul telefono**; mai nei campi password; esportabile e cancellabile.
 
-**Strumenti**, a un tocco dalla barra: i tre puntini aprono la cassetta degli strumenti e il **tasto rapido** porta dritto agli appunti (o a qualsiasi strumento scelto), con un puntino quando hai copiato qualcosa.
+**Strumenti**, a un tocco dalla barra. **SpaceTask**: tieni premuta la barra spaziatrice e gli strumenti salgono con un'animazione; scorri su uno senza staccare il dito e rilascia. (Con SpaceTask spento, i tre puntini aprono la cassetta degli strumenti.) Il **tasto rapido** porta dritto agli appunti (o a qualsiasi strumento scelto), con un puntino quando hai copiato qualcosa.
 - **Appunti** con limite a scelta, elementi fissati e **immagini**.
 - **Traduci** il campo, o ciò che hai appena copiato (utile per i messaggi ricevuti), tra 40 lingue. Di default Google; si possono scegliere Google Cloud, DeepL, LibreTranslate o MyMemory.
 - **GIF** da una fonte a scelta: GIPHY, Tenor, Klipy o Imgur (con una tua chiave gratuita; un pulsante apre la pagina dove prenderla), una cartella del telefono o un servizio JSON che descrivi tu, con un livello dei contenuti da G a R.
